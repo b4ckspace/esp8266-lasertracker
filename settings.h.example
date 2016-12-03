@@ -1,0 +1,13 @@
+
+#define LASER_FAN_SENSE D6
+
+const char* MQTT_HOST = "mqtthost.foo.bar";
+
+const char* MQTT_TOPIC_OPERATION = "project/laser/operation";
+const char* MQTT_TOPIC_DURATION = "project/laser/duration";
+const char* MQTT_TOPIC_FINISHED = "project/laser/finished";
+const char* MQTT_TOPIC_POWERED = "project/laser/powered";
+
+const char* WIFI_HOSTNAME = "ESP-Lasertracker";
+const char* WIFI_SSID = "tolles wifi";
+const char* WIFI_PASSWORD = "tolles pw";
