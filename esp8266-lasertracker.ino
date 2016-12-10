@@ -1,22 +1,28 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
 #include <Bounce2.h>
+#include <SimpleTimer.h>
 #include "settings.h"
 
 bool active = false;
+bool powered = true;
+
 unsigned long startTime = 0;
 uint16_t durationSeconds = 0;
-uint16_t lastDurationSeconds = 0;
 
 char sprintfHelper[16] = {0};
 
-Bounce debouncer = Bounce();
+Bounce laserActiveDebouncer = Bounce();
+Bounce laserPoweredDebouncer = Bounce();
+
+SimpleTimer timer;
 WiFiClient wifiClient;
 PubSubClient mqttClient;
 
 void setup() {
   Serial.begin(115200);
 
+  pinMode(LASER_ACTIVE_SENSE, INPUT);
   pinMode(LASER_FAN_SENSE, INPUT);
 
   WiFi.hostname(WIFI_HOSTNAME);
@@ -31,10 +37,22 @@ void setup() {
     delay(500);
   }
 
-  debouncer.attach(LASER_FAN_SENSE);
-  debouncer.interval(100);
+  laserActiveDebouncer.attach(LASER_FAN_SENSE);
+  laserActiveDebouncer.interval(150);
+  
+  laserPoweredDebouncer.attach(LASER_ACTIVE_SENSE);
+  laserPoweredDebouncer.interval(50);
 
   connectMqtt();
+
+  timer.setInterval(1000, []() {
+    if (active) {
+      durationSeconds++;
+      publishDuration(MQTT_TOPIC_DURATION, durationSeconds);
+
+      Serial.println(durationSeconds);
+    }
+  });
 
   mqttClient.publish(MQTT_TOPIC_POWERED, "on", true);
   mqttClient.publish(MQTT_TOPIC_OPERATION, "inactive", true);
@@ -49,7 +67,10 @@ void connectMqtt() {
   }
 }
 
-void sendDuration(const char* topic, uint16_t duration) {
+void publishDuration(const char* topic, uint16_t duration) {
+  Serial.print("Pub: ");
+  Serial.println(duration);
+  
   sprintf(sprintfHelper, "%d", durationSeconds);
   mqttClient.publish(topic, sprintfHelper);
 }
@@ -57,41 +78,55 @@ void sendDuration(const char* topic, uint16_t duration) {
 void loop() {
   connectMqtt();
 
-  if (debouncer.fell()) {
-    startTime = millis();
-
+  if (laserPoweredDebouncer.fell()) {
     durationSeconds = 0;
-    lastDurationSeconds = 0;
-
-    active = true;
-    sendDuration(MQTT_TOPIC_DURATION, 0);
-    mqttClient.publish(MQTT_TOPIC_OPERATION, "active", true);
-
-    Serial.println("Active");
-  }
-
-  if (active) {
-    durationSeconds = (millis() - startTime) / 1000;
-
-    if (durationSeconds != lastDurationSeconds) {
-      lastDurationSeconds = durationSeconds;
-      sendDuration(MQTT_TOPIC_DURATION, lastDurationSeconds);
-
-      Serial.println(lastDurationSeconds);
-    }
-  }
-
-  if (debouncer.rose()) {
-
-    if (active) {
-      sendDuration(MQTT_TOPIC_FINISHED, durationSeconds);
-      mqttClient.publish(MQTT_TOPIC_OPERATION, "inactive", true);
-    }
-
+    powered = false;
     active = false;
-    Serial.println("Inactive");
+
+    Serial.println("Laser is off");
+  } else if (laserPoweredDebouncer.rose()) {
+    durationSeconds = 0;
+    powered = true;
+    active = false;
+    
+    Serial.println("Laser is on");
+  }
+
+  if (powered) {
+
+    // Laser is now powered
+    if (laserActiveDebouncer.fell()) {
+      startTime = millis();
+  
+      durationSeconds = 0;
+  
+      publishDuration(MQTT_TOPIC_DURATION, 0);
+      mqttClient.publish(MQTT_TOPIC_OPERATION, "active", true);
+      
+      active = true;
+      Serial.println("Active");
+    }
+ 
+    // Laser is now inactive
+    if (laserActiveDebouncer.rose()) {
+  
+      if (active) {
+        if (durationSeconds > 0) {
+          publishDuration(MQTT_TOPIC_FINISHED, durationSeconds);
+        }
+        
+        mqttClient.publish(MQTT_TOPIC_OPERATION, "inactive", true);
+      }
+  
+      active = false;
+      Serial.println("Inactive");
+    }
+    
   }
 
   mqttClient.loop();
-  debouncer.update();
+  timer.run();
+  
+  laserActiveDebouncer.update();
+  laserPoweredDebouncer.update();
 }
