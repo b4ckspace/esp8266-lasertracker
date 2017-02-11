@@ -2,6 +2,7 @@
 #include <ESP8266WiFi.h>
 #include <Bounce2.h>
 #include <SimpleTimer.h>
+#include <ESP8266HTTPClient.h>
 #include "settings.h"
 
 bool active = false;
@@ -67,6 +68,20 @@ void connectMqtt() {
   }
 }
 
+bool storeInLasertracker(uint16_t durationSeconds) {
+  HTTPClient http;
+  http.begin("http://" + LASERTRACKER_HOST + "/api/laseroperations?duration=" + String(durationSeconds)); //HTTP
+
+  uint16_t statusCode = http.GET();
+  http.end();
+  
+  if (statusCode == 200) {
+    return true;
+  }
+
+  return false;
+}
+
 void publishDuration(const char* topic, uint16_t duration) {
   Serial.print("Pub: ");
   Serial.println(duration);
@@ -113,6 +128,7 @@ void loop() {
       if (active) {
         if (durationSeconds > 0) {
           publishDuration(MQTT_TOPIC_FINISHED, durationSeconds);
+          storeInLasertracker(durationSeconds);
         }
         
         mqttClient.publish(MQTT_TOPIC_OPERATION, "inactive", true);
