@@ -1,5 +1,6 @@
 #include <PubSubClient.h>
 #include <ESP8266WiFi.h>
+#include <ArduinoOTA.h>
 #include <Bounce2.h>
 #include <SimpleTimer.h>
 #include <ESP8266HTTPClient.h>
@@ -29,14 +30,18 @@ void setup() {
   WiFi.hostname(WIFI_HOSTNAME);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
-
-  mqttClient.setClient(wifiClient);
-  mqttClient.setServer(MQTT_HOST, 1883);
-
+  
   while (WiFi.status() != WL_CONNECTED) {
     Serial.print(".");
     delay(500);
   }
+
+  mqttClient.setClient(wifiClient);
+  mqttClient.setServer(MQTT_HOST, 1883);
+  
+  ArduinoOTA.setHostname(HOSTNAME);
+  ArduinoOTA.setPassword(OTA_PASSWORD);
+  ArduinoOTA.begin();
 
   laserActiveDebouncer.attach(LASER_FAN_SENSE);
   laserActiveDebouncer.interval(150);
@@ -145,4 +150,6 @@ void loop() {
   
   laserActiveDebouncer.update();
   laserPoweredDebouncer.update();
+
+  ArduinoOTA.handle();
 }
