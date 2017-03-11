@@ -27,7 +27,7 @@ void setup() {
   pinMode(LASER_ACTIVE_SENSE, INPUT);
   pinMode(LASER_FAN_SENSE, INPUT);
 
-  WiFi.hostname(WIFI_HOSTNAME);
+  WiFi.hostname(HOSTNAME);
   WiFi.mode(WIFI_STA);
   WiFi.begin(WIFI_SSID, WIFI_PASSWORD);
   
@@ -62,12 +62,13 @@ void setup() {
 
   mqttClient.publish(MQTT_TOPIC_POWERED, "on", true);
   mqttClient.publish(MQTT_TOPIC_OPERATION, "inactive", true);
+
 }
 
 void connectMqtt() {
   while (!mqttClient.connected()) {
     Serial.println("Connecting mqtt");
-    mqttClient.connect("lasercutter", MQTT_TOPIC_POWERED, 1, true, "off");
+    mqttClient.connect(HOSTNAME, MQTT_TOPIC_POWERED, 1, true, "off");
 
     delay(1000);
   }
